@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão da Vendinha - Controle de Estoque e Caixa</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f6f9; margin: 0; padding: 15px; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; }
+        header { background: #2b579a; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
+        header h1 { margin: 0; font-size: 1.4rem; }
+        .resumo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .card-resumo { background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card-resumo h3 { margin: 0 0 5px 0; font-size: 0.85rem; color: #666; }
+        .card-resumo p { margin: 0; font-size: 1.2rem; font-weight: bold; }
+        .verde { color: #28a745; }
+        .azul { color: #007bff; }
+        .laranja { color: #fd7e14; }
+        .box { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .box h2 { margin-top: 0; font-size: 1.1rem; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        input, button { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 0.95rem; width: 100%; }
+        button { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #218838; }
+        .btn-vender { background: #007bff; padding: 6px 10px; width: auto; margin: 0; font-size: 0.85rem; }
+        .btn-vender:hover { background: #0056b3; }
+        .btn-excluir { background: #dc3545; padding: 6px 10px; width: auto; margin: 0; font-size: 0.85rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; }
+        .alerta-estoque { color: #dc3545; font-weight: bold; }
+        @media (max-width: 600px) {
+            .resumo { grid-template-columns: 1fr; }
+            .form-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🍬 Controle Inteligente da Vendinha</h1>
+        <small>Projeto de Extensão - Análise e Desenvolvimento de Sistemas</small>
+    </header>
+
+    <!-- Painel Financeiro -->
+    <div class="resumo">
+        <div class="card-resumo">
+            <h3>Total Vendido (Caixa)</h3>
+            <p class="azul" id="totalFaturado">R$ 0,00</p>
+        </div>
+        <div class="card-resumo">
+            <h3>Lucro Líquido Estimado</h3>
+            <p class="verde" id="totalLucro">R$ 0,00</p>
+        </div>
+        <div class="card-resumo">
+            <h3>Itens em Estoque</h3>
+            <p class="laranja" id="totalItens">0 un.</p>
+        </div>
+    </div>
+
+    <!-- Cadastro de Caixa / Produto -->
+    <div class="box">
+        <h2>➕ Cadastrar Caixa ou Produto</h2>
+        <div class="form-grid">
+            <div>
+                <label>Nome do Produto (ex: Bala Azedinho)</label>
+                <input type="text" id="nome" placeholder="Ex: Pirulito Plutonita">
+            </div>
+            <div>
+                <label>Qtd. de Unidades na Caixa</label>
+                <input type="number" id="qtd" placeholder="Ex: 50">
+            </div>
+            <div>
+                <label>Valor Pago na Caixa (R$)</label>
+                <input type="number" step="0.01" id="custoCaixa" placeholder="Ex: 12.50">
+            </div>
+            <div>
+                <label>Preço de Venda por Unidade (R$)</label>
+                <input type="number" step="0.01" id="precoVenda" placeholder="Ex: 0.50">
+            </div>
+        </div>
+        <button onclick="cadastrarProduto()">Salvar Produto no Estoque</button>
+    </div>
+
+    <!-- Lista de Produtos e Venda Rápida -->
+    <div class="box">
+        <h2>📦 Estoque e Venda Rápida</h2>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Produto</th>
+                        <th>Custo Un.</th>
+                        <th>Venda Un.</th>
+                        <th>Estoque</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelaProdutos"></tbody>
+            </table>
+        </div>
+        <button onclick="zerarCaixa()" style="background:#6c757d; margin-top:15px;">Zerar Relatório de Caixa do Dia</button>
+    </div>
+</div>
+
+<script>
+    let produtos = JSON.parse(localStorage.getItem('vendinha_produtos')) || [];
+    let caixa = JSON.parse(localStorage.getItem('vendinha_caixa')) || { faturado: 0, lucro: 0 };
+
+    function salvarDados() {
+        localStorage.setItem('vendinha_produtos', JSON.stringify(produtos));
+        localStorage.setItem('vendinha_caixa', JSON.stringify(caixa));
+        atualizarTela();
+    }
+
+    function cadastrarProduto() {
+        const nome = document.getElementById('nome').value.trim();
+        const qtd = parseInt(document.getElementById('qtd').value);
+        const custoCaixa = parseFloat(document.getElementById('custoCaixa').value);
+        const precoVenda = parseFloat(document.getElementById('precoVenda').value);
+
+        if (!nome || isNaN(qtd) || qtd <= 0 || isNaN(custoCaixa) || isNaN(precoVenda)) {
+            alert('Preencha todos os campos corretamente!');
+            return;
+        }
+
+        const custoUnitario = custoCaixa / qtd;
+
+        produtos.push({
+            id: Date.now(),
+            nome: nome,
+            estoque: qtd,
+            custoUn: custoUnitario,
+            vendaUn: precoVenda
+        });
+
+        document.getElementById('nome').value = '';
+        document.getElementById('qtd').value = '';
+        document.getElementById('custoCaixa').value = '';
+        document.getElementById('precoVenda').value = '';
+
+        salvarDados();
+    }
+
+    function registrarVenda(id) {
+        const produto = produtos.find(p => p.id === id);
+        if (produto && produto.estoque > 0) {
+            produto.estoque -= 1;
+            caixa.faturado += produto.vendaUn;
+            caixa.lucro += (produto.vendaUn - produto.custoUn);
+            salvarDados();
+        } else {
+            alert('Produto sem estoque!');
+        }
+    }
+
+    function removerProduto(id) {
+        if (confirm('Deseja remover este produto?')) {
+            produtos = produtos.filter(p => p.id !== id);
+            salvarDados();
+        }
+    }
+
+    function zerarCaixa() {
+        if (confirm('Deseja zerar o faturamento e lucro do dia?')) {
+            caixa = { faturado: 0, lucro: 0 };
+            salvarDados();
+        }
+    }
+
+    function atualizarTela() {
+        const tbody = document.getElementById('tabelaProdutos');
+        tbody.innerHTML = '';
+        let totalEstoque = 0;
+
+        produtos.forEach(p => {
+            totalEstoque += p.estoque;
+            const classeEstoque = p.estoque <= 5 ? 'alerta-estoque' : '';
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${p.nome}</strong></td>
+                    <td>R$ ${p.custoUn.toFixed(2)}</td>
+                    <td>R$ ${p.vendaUn.toFixed(2)}</td>
+                    <td class="${classeEstoque}">${p.estoque} un.</td>
+                    <td>
+                        <button class="btn-vender" onclick="registrarVenda(${p.id})">+1 Venda</button>
+                        <button class="btn-excluir" onclick="removerProduto(${p.id})">X</button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        document.getElementById('totalFaturado').innerText = `R$ ${caixa.faturado.toFixed(2)}`;
+        document.getElementById('totalLucro').innerText = `R$ ${caixa.lucro.toFixed(2)}`;
+        document.getElementById('totalItens').innerText = `${totalEstoque} un.`;
+    }
+
+    atualizarTela();
+</script>
+
+</body>
+</html>
